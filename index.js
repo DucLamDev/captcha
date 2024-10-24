@@ -4,6 +4,7 @@ import FormData from 'form-data';
 import path from 'path';
 import https from 'https';
 import crypto from 'crypto';
+import axiosRetry from 'axios-retry';
 
 const __dirname = path.resolve();
 
@@ -18,6 +19,17 @@ const folderPath = path.join(__dirname, 'captcha_images');
 if (!fs.existsSync(folderPath)) {
     fs.mkdirSync(folderPath);
 }
+
+axiosRetry(axios, {
+    retries: 3,
+    retryCondition: (error) => {
+        return error.response.status >= 400
+    },
+    retryDelay: (retryCount) => {
+        return retryCount * 2000; 
+    },
+    shouldResetTimeout: true,
+});
 
 const decodeCaptcha = async (filePath) => {
     try {
@@ -66,6 +78,7 @@ const downloadCaptcha = async (index) => {
             } else {
                 fs.renameSync(filePath, newFilePath);
             }
+        console.log("đã lưu file captcha");
         } else {
             console.log(`Không thể giải mã captcha cho file: ${filePath}`);
         }
@@ -97,6 +110,7 @@ const downloadCaptcha2 = async (index) => {
             } else {
                 fs.renameSync(filePath, newFilePath);
             }
+            console.log("đã lưu file captcha servlet");
         } else {
             console.log(`Không thể giải mã captcha cho file: ${filePath}`);
         }
@@ -106,10 +120,10 @@ const downloadCaptcha2 = async (index) => {
     }
 };
 
-const run = async () => {
+const run = async (n) => {
     const promises = [];
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < n; i++) {
         promises.push(downloadCaptcha(i));
         promises.push(downloadCaptcha2(i));
     }
@@ -117,4 +131,5 @@ const run = async () => {
     await Promise.all(promises);
 };
 
-run();
+//điền số file ảnh muốn tạo
+run(1);
