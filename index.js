@@ -113,7 +113,7 @@ app.get(`/download-captchas/:n`, async (req, res) => {
         }
     }
 
-    res.send('Đã tải và giải mã 2 file captcha thành công!');
+    res.send('loading...');
 });
 
 app.listen(PORT, () => {
