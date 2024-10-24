@@ -1,13 +1,11 @@
-const express = require('express');
-const axios = require('axios');
-const fs = require('fs');
-const FormData = require('form-data');
-const path = require('path');
-const https = require('https');
-const crypto = require('crypto');
+import axios from 'axios';
+import fs from 'fs';
+import FormData from 'form-data';
+import path from 'path';
+import https from 'https';
+import crypto from 'crypto';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const __dirname = path.resolve();
 
 const folderPath2 = path.join(__dirname, 'captcha_ImageServlet');
 
@@ -15,54 +13,11 @@ if (!fs.existsSync(folderPath2)) {
     fs.mkdirSync(folderPath2);
 }
 
-
 const folderPath = path.join(__dirname, 'captcha_images');
 
 if (!fs.existsSync(folderPath)) {
     fs.mkdirSync(folderPath);
 }
-
-const downloadCaptcha = async (index) => {
-    const url = 'https://tracuunnt.gdt.gov.vn/tcnnt/captcha.png';
-    try {
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false,
-                secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
-            }),
-        });
-
-        const filePath = path.join(folderPath, `captcha_${index}.png`);
-        fs.writeFileSync(filePath, response.data);
-        
-        return filePath;
-    } catch (error) {
-        console.error(`Lỗi khi tải captcha ${index}:`, error.message);
-        return null;
-    }
-};
-
-const downloadCaptcha2 = async (index) => {
-    const url = 'https://thuedientu.gdt.gov.vn/etaxnnt/servlet/ImageServlet';
-    try {
-        const response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            httpsAgent: new https.Agent({
-                rejectUnauthorized: false,
-                secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
-            }),
-        });
-
-        const filePath = path.join(folderPath2, `captcha_${index}.png`);
-        fs.writeFileSync(filePath, response.data);
-        
-        return filePath;
-    } catch (error) {
-        console.error(`Lỗi khi tải captcha ${index}:`, error.message);
-        return null;
-    }
-};
 
 const decodeCaptcha = async (filePath) => {
     try {
@@ -89,33 +44,77 @@ const decodeCaptcha = async (filePath) => {
     }
 };
 
-app.get(`/download-captchas/:n`, async (req, res) => {
-  const n = req.params.n;
-    for (let i = 0; i < n; i++) {
-        const filePath2 = await downloadCaptcha2(i);
-        const filePath = await downloadCaptcha(i);
+const downloadCaptcha = async (index) => {
+    const url = 'https://tracuunnt.gdt.gov.vn/tcnnt/captcha.png';
+    try {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            httpsAgent: new https.Agent({
+                rejectUnauthorized: false,
+                secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+            }),
+        });
+        const filePath = path.join(folderPath, `captcha_${index}.png`);
+        fs.writeFileSync(filePath, response.data);
 
-        if (filePath2&&filePath) {
-            const decodedText = await decodeCaptcha(filePath);
-            const decodedText2 = await decodeCaptcha(filePath2);
+        const decodedText = await decodeCaptcha(filePath);
 
-            if (decodedText&&decodedText2) {
-                const newFilePath = path.join(folderPath, `${decodedText}.png`);
-                const newFilePath2 = path.join(folderPath2, `${decodedText2}.png`);
-
+        if (decodedText) {
+            const newFilePath = path.join(folderPath, `${decodedText}.png`);
+            if (fs.existsSync(newFilePath)) {
+                fs.renameSync(filePath, path.join(folderPath, `${decodedText}_${index}.png`));
+            } else {
                 fs.renameSync(filePath, newFilePath);
-                fs.renameSync(filePath2, newFilePath2);
-
-                console.log(`Đã lưu captcha với tên: ${newFilePath}`);
-                console.log(`Đã lưu captcha với tên: ${newFilePath2}`);
-
             }
+        } else {
+            console.log(`Không thể giải mã captcha cho file: ${filePath}`);
         }
+    } catch (error) {
+        console.error(`Lỗi khi tải captcha ${index}:`, error.message);
+        return null;
+    }
+};
+
+const downloadCaptcha2 = async (index) => {
+    const url = 'https://thuedientu.gdt.gov.vn/etaxnnt/servlet/ImageServlet';
+    try {
+        const response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            httpsAgent: new https.Agent({
+                rejectUnauthorized: false,
+                secureOptions: crypto.constants.SSL_OP_LEGACY_SERVER_CONNECT,
+            }),
+        });
+        const filePath = path.join(folderPath2, `captcha_${index}.png`);
+        fs.writeFileSync(filePath, response.data);
+
+        const decodedText = await decodeCaptcha(filePath);
+
+        if (decodedText) {
+            const newFilePath = path.join(folderPath2, `${decodedText}.png`);
+            if (fs.existsSync(newFilePath)) {
+                fs.renameSync(filePath, path.join(folderPath2, `${decodedText}_${index}.png`));
+            } else {
+                fs.renameSync(filePath, newFilePath);
+            }
+        } else {
+            console.log(`Không thể giải mã captcha cho file: ${filePath}`);
+        }
+    } catch (error) {
+        console.error(`Lỗi khi tải captcha ${index}:`, error.message);
+        return null;
+    }
+};
+
+const run = async () => {
+    const promises = [];
+
+    for (let i = 0; i < 3; i++) {
+        promises.push(downloadCaptcha(i));
+        promises.push(downloadCaptcha2(i));
     }
 
-    res.send('loading...');
-});
+    await Promise.all(promises);
+};
 
-app.listen(PORT, () => {
-    console.log(`Server đang chạy tại http://localhost:${PORT}`);
-});
+run();
